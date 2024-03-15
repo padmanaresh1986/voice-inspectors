@@ -1,0 +1,7 @@
+Flask
+gunicorn
+asyncio
+librosa
+numpy
+tensorflow
+werkzeug
