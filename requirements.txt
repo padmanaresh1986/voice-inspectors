@@ -1,4 +1,5 @@
 Flask
+Flask[async]
 gunicorn
 asyncio
 librosa
