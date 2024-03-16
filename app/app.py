@@ -208,13 +208,13 @@ async def upload_file_to_storage():
 
 
     # Check if the file has an allowed extension
-    if allowed_file(data.sample):
+    if allowed_file(data['sample']):
         # Save the file to a temporary location
-        temp_file_path = os.path.join(app.config['UPLOAD_FOLDER'], secure_filename(data.sample))
+        temp_file_path = os.path.join(app.config['UPLOAD_FOLDER'], secure_filename(data['sample']))
         print(temp_file_path)
         storage_client = storage.Client()
         bucket = storage_client.get_bucket(bucket_name)
-        blob = bucket.blob(object_name+'/'+data.sample)
+        blob = bucket.blob(object_name+'/'+data['sample'])
         blob.download_to_filename(temp_file_path)
         print("blob download to temp path completed")
         # Process the audio file asynchronously
