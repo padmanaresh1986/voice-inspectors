@@ -6,3 +6,4 @@ librosa
 numpy
 tensorflow
 werkzeug
+google-cloud-storage

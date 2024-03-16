@@ -7,6 +7,8 @@ import os
 from flask import Flask, request, jsonify
 from werkzeug.utils import secure_filename
 import time
+from google.cloud import storage
+from io import BytesIO
 
 app = Flask(__name__)
 
@@ -181,6 +183,40 @@ async def upload_file():
         temp_file_path = os.path.join(app.config['UPLOAD_FOLDER'], secure_filename(file.filename))
         file.save(temp_file_path)
 
+        # Process the audio file asynchronously
+        result = await process_audio_async(temp_file_path)
+
+        # Remove the temporary file
+        os.remove(temp_file_path)
+
+        return jsonify(result)
+
+    return jsonify({"error": "Invalid file format"})
+
+
+# API route for file upload and prediction
+@app.route('/upload-to-storage', methods=['POST'])
+async def upload_file_to_storage():
+    # Check if the file is present in the request
+    bucket_name = 'voice_detectives'
+    object_name = 'upload'
+    data = request.get_json()
+
+    if data is None:
+        return jsonify({"error": "No request json"})
+    print(data)
+
+
+    # Check if the file has an allowed extension
+    if allowed_file(data.sample):
+        # Save the file to a temporary location
+        temp_file_path = os.path.join(app.config['UPLOAD_FOLDER'], secure_filename(data.sample))
+        print(temp_file_path)
+        storage_client = storage.Client()
+        bucket = storage_client.get_bucket(bucket_name)
+        blob = bucket.blob(object_name+'/'+data.sample)
+        blob.download_to_filename(temp_file_path)
+        print("blob download to temp path completed")
         # Process the audio file asynchronously
         result = await process_audio_async(temp_file_path)
 
