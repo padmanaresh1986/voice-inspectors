@@ -7,5 +7,5 @@ numpy
 tensorflow
 werkzeug
 plotly
-pyaudio
+#pyaudio
 streamlit
