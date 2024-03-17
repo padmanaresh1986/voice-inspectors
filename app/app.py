@@ -226,9 +226,9 @@ ALLOWED_EXTENSIONS = {'wav', 'mp3'}
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
-@app.route('/health')
+@app.route('/ping')
 def health():
-    return 'It is alive!\n'
+    return 'pong\n'
 
 # API route for file upload and prediction
 @app.route('/upload', methods=['POST'])
