@@ -7,8 +7,7 @@ import os
 from flask import Flask, request, jsonify
 from werkzeug.utils import secure_filename
 import time
-from google.cloud import storage
-from io import BytesIO
+import joblib
 
 app = Flask(__name__)
 
@@ -16,30 +15,33 @@ app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 1000 * 1024 * 1024
 
 # Load the pre-trained model
-userModel = load_model("speaker_classification_model1.h5")
+userModel = load_model("speaker_classification_model.h5")
 
 # Load the pre-trained model
 moodModel = load_model("speaker_emotional_model.h5")
 
+# Load the trained model
+languageModel = joblib.load("language_identification_model.pkl")
 
-def detect_audio_content(audio_file):
-    # Load the audio file
-    y, sr = librosa.load(audio_file, sr=None)
+model_filename = "audio_classification_model.joblib"
+musicSpeechModel = joblib.load(model_filename)
 
-    # Compute the short-time Fourier transform (STFT)
-    stft = librosa.stft(y)
 
-    # Calculate the mean energy of the STFT across frequency bins
-    energy = np.mean(np.abs(stft), axis=0)
+# Function to extract audio features
+def extract_music_features(audio_file):
+    y, sr = librosa.load(audio_file)
+    mfcc = librosa.feature.mfcc(y=y, sr=sr)
+    spectral_centroid = librosa.feature.spectral_centroid(y=y, sr=sr)
+    spectral_bandwidth = librosa.feature.spectral_bandwidth(y=y, sr=sr)
 
-    # Threshold for determining if speech is present
-    speech_threshold = np.mean(energy) * 5  # Adjust this threshold as needed
+    # Calculate mean of each feature individually
+    mfcc_mean = np.mean(mfcc) if mfcc.size > 0 else 0
+    spectral_centroid_mean = np.mean(spectral_centroid) if spectral_centroid.size > 0 else 0
+    spectral_bandwidth_mean = np.mean(spectral_bandwidth) if spectral_bandwidth.size > 0 else 0
 
-    # Detect speech based on energy threshold
-    if np.max(energy) > speech_threshold:
-        return "Speech"
-    else:
-        return "Music"
+    # Concatenate the means
+    features = np.array([mfcc_mean, spectral_centroid_mean, spectral_bandwidth_mean])
+    return features
 
 
 # Function to extract MFCC features from an audio clip
@@ -47,6 +49,12 @@ def extract_mfcc(filename):
     y, sr = librosa.load(filename, duration=3, offset=0.5)
     mfcc = np.mean(librosa.feature.mfcc(y=y, sr=sr, n_mfcc=40).T, axis=0)
     return mfcc
+
+
+def extract_languages(audio_file):
+    y, sr = librosa.load(audio_file, sr=None)
+    mfcc = librosa.feature.mfcc(y=y, sr=sr, n_mfcc=20)
+    return np.mean(mfcc, axis=1)
 
 
 def extract_features(audio_file, max_length=100):
@@ -107,6 +115,56 @@ async def classify_mood(audio_file):
     return json.dumps(result)
 
 
+async def classify_music_speech(audio_file):
+    # Extract features from the audio file
+    features = extract_music_features(audio_file)
+    # Reshape features for prediction
+    features = features.reshape(1, -1)
+    # Predict the class label
+    predicted_label = musicSpeechModel.predict(features)[0]
+    result = {"audioType": predicted_label}
+    return json.dumps(result)
+
+
+async def classify_language(audio_file):
+    # Extract features from the test audio file
+    test_features = extract_languages(audio_file)
+    # Predict the language
+    predicted_language = languageModel.predict([test_features])[0]
+    result = {"language": predicted_language}
+    return json.dumps(result)
+
+
+def detect_noise_level(audio_file):
+    # Load the audio file
+    y, sr = librosa.load(audio_file)
+
+    # Calculate the short-time Fourier transform (STFT)
+    stft = librosa.stft(y)
+
+    # Compute the power spectrogram
+    power = np.abs(stft) ** 2
+
+    # Calculate the mean power across frequency bins
+    mean_power = np.mean(power, axis=0)
+
+    # Normalize the mean power
+    norm_mean_power = mean_power / np.max(mean_power)
+
+    # Calculate the percentage of noise
+    noise_percentage = np.sum(norm_mean_power > 0.2) / len(norm_mean_power) * 100  # Adjust threshold as needed
+
+    # Categorize the noise level
+    if noise_percentage > 60:
+        noise_level = "High"
+    elif noise_percentage > 30:
+        noise_level = "Medium"
+    else:
+        noise_level = "Low"
+
+    return noise_level
+
+
 # Asynchronous function to process audio file and generate combined JSON
 async def process_audio_async(audio_file):
     start_time = time.time()
@@ -114,16 +172,24 @@ async def process_audio_async(audio_file):
     # Run both functions concurrently
     user_type_task = asyncio.create_task(classify_user_type(audio_file))
     mood_task = asyncio.create_task(classify_mood(audio_file))
+    language_task = asyncio.create_task(classify_language(audio_file))
+    music_speech_task = asyncio.create_task(classify_music_speech(audio_file))
+   # noice_task = asyncio.create_task(detect_noise_level(audio_file))
 
     # Wait for both results to be ready
     user_type_result = await user_type_task
     mood_result = await mood_task
+    language_result = await language_task
+    music_speech_result = await music_speech_task
+   # noice_result = await noice_task
 
     end_time = time.time()
     response_time = round(end_time - start_time, 2)
 
     userobj = json.loads(user_type_result)
     moodobj = json.loads(mood_result)
+    languageobj = json.loads(language_result)
+    musicSpeechObj = json.loads(music_speech_result)
 
     result = {
         "status": "success",
@@ -135,15 +201,15 @@ async def process_audio_async(audio_file):
                 "humanProbability": userobj.get("human_percentage")
             },
             "additionalInfo": {
+                "language": languageobj.get("language"),
                 "emotionalTone": moodobj.get("mood"),
-                "backgroundNoiseLevel": "low"
+                "backgroundNoiseLevel": detect_noise_level(audio_file),
+                "audioType": musicSpeechObj.get("audioType")
             }
         },
         "responseTime": response_time
     }
     return result
-
-
 
 
 # Upload folder
@@ -169,13 +235,13 @@ def health():
 async def upload_file():
     # Check if the file is present in the request
     if 'file' not in request.files:
-        return jsonify({"error": "No file part"})
+        return jsonify({"error": "No file part"}), 400
 
     file = request.files['file']
 
     # Check if the file is empty
     if file.filename == '':
-        return jsonify({"error": "No selected file"})
+        return jsonify({"error": "No selected file"}), 400
 
     # Check if the file has an allowed extension
     if file and allowed_file(file.filename):
@@ -189,43 +255,9 @@ async def upload_file():
         # Remove the temporary file
         os.remove(temp_file_path)
 
-        return jsonify(result)
+        return jsonify(result), 200
 
-    return jsonify({"error": "Invalid file format"})
-
-
-# API route for file upload and prediction
-@app.route('/upload-to-storage', methods=['POST'])
-async def upload_file_to_storage():
-    # Check if the file is present in the request
-    bucket_name = 'voice_detectives'
-    object_name = 'upload'
-    data = request.get_json()
-
-    if data is None:
-        return jsonify({"error": "No request json"})
-    print(data)
-
-
-    # Check if the file has an allowed extension
-    if allowed_file(data['sample']):
-        # Save the file to a temporary location
-        temp_file_path = os.path.join(app.config['UPLOAD_FOLDER'], secure_filename(data['sample']))
-        print(temp_file_path)
-        storage_client = storage.Client()
-        bucket = storage_client.get_bucket(bucket_name)
-        blob = bucket.blob(object_name+'/'+data['sample'])
-        blob.download_to_filename(temp_file_path)
-        print("blob download to temp path completed")
-        # Process the audio file asynchronously
-        result = await process_audio_async(temp_file_path)
-
-        # Remove the temporary file
-        os.remove(temp_file_path)
-
-        return jsonify(result)
-
-    return jsonify({"error": "Invalid file format"})
+    return jsonify({"error": "Invalid file format"}), 400
 
 
 if __name__ == '__main__':
