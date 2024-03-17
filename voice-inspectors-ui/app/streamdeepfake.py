@@ -14,15 +14,15 @@ import pyaudio
 import wave
 
 # Load the pre-trained model
-userModel = load_model("speaker_classification_model.h5")
+userModel = load_model("app/speaker_classification_model.h5")
 
 # Load the pre-trained model
-moodModel = load_model("speaker_emotional_model.h5")
+moodModel = load_model("app/speaker_emotional_model.h5")
 
 # Load the trained model
-languageModel = joblib.load("language_identification_model.pkl")
+languageModel = joblib.load("app/language_identification_model.pkl")
 
-model_filename = "audio_classification_model.joblib"
+model_filename = "app/audio_classification_model.joblib"
 musicSpeechModel = joblib.load(model_filename)
 
 st.set_page_config(layout="wide")
