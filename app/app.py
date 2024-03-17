@@ -15,15 +15,15 @@ app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 1000 * 1024 * 1024
 
 # Load the pre-trained model
-userModel = load_model("speaker_classification_model.h5")
+userModel = load_model("audio_type_classification.h5")
 
 # Load the pre-trained model
 moodModel = load_model("speaker_emotional_model.h5")
 
 # Load the trained model
-languageModel = joblib.load("language_identification_model.pkl")
+languageModel = joblib.load("language_model.pkl")
 
-model_filename = "audio_classification_model.joblib"
+model_filename = "music_classification_model.joblib"
 musicSpeechModel = joblib.load(model_filename)
 
 
@@ -253,7 +253,7 @@ async def upload_file():
         result = await process_audio_async(temp_file_path)
 
         # Remove the temporary file
-        os.remove(temp_file_path)
+        # os.remove(temp_file_path)
 
         return jsonify(result), 200
 
