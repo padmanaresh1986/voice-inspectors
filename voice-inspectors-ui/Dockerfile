@@ -7,6 +7,13 @@ ENV APP_HOME /app
 WORKDIR $APP_HOME
 COPY . ./
 
+# Install build dependencies for PyAudio
+RUN apt-get update && apt-get install -y \
+    gcc \
+    libportaudio2 \
+    portaudio19-dev \
+    && rm -rf /var/lib/apt/lists/*
+
 # Install production dependencies.
 RUN pip install --upgrade -r requirements.txt
 
