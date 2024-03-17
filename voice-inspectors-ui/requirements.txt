@@ -1,0 +1,11 @@
+Flask
+Flask[async]
+gunicorn
+asyncio
+librosa
+numpy
+tensorflow
+werkzeug
+plotly
+pyaudio
+streamlit
