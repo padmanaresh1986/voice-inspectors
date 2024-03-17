@@ -12,24 +12,43 @@ from tensorflow.keras.models import load_model
 import plotly.graph_objects as go
 import pyaudio
 import wave
+import random
 
 # Load the pre-trained model
-userModel = load_model("app/speaker_classification_model.h5")
+userModel = load_model("app/audio_type_classification.h5")
 
 # Load the pre-trained model
 moodModel = load_model("app/speaker_emotional_model.h5")
 
 # Load the trained model
-languageModel = joblib.load("app/language_identification_model.pkl")
+languageModel = joblib.load("app/language_model.pkl")
 
-model_filename = "app/audio_classification_model.joblib"
+model_filename = "app/music_classification_model.joblib"
 musicSpeechModel = joblib.load(model_filename)
+
+model_filename = "app/live_vs_recorded_model.joblib"
+classifier = joblib.load(model_filename)
 
 st.set_page_config(layout="wide")
 
 st.title("Voice Detectives")
 
 col1, col2 = st.columns([2, 1])  # Adjust the widths as needed
+
+
+def extract_live_features(audio_file, mfcc=True, chroma=True, mel=True):
+    y, sample_rate = librosa.load(audio_file)
+    features = []
+    if chroma:
+        chroma_stft = librosa.feature.chroma_stft(y=y, sr=sample_rate)
+        features.append(chroma_stft.T)
+    if mel:
+        mel_spectrogram = librosa.feature.melspectrogram(y=y, sr=sample_rate)
+        features.append(mel_spectrogram.T)
+    if mfcc:
+        mfccs = librosa.feature.mfcc(y=y, sr=sample_rate)
+        features.append(mfccs.T)
+    return np.hstack(features).reshape(1, -1)  # Reshape features for prediction
 
 
 # Function to extract audio features
@@ -310,9 +329,16 @@ def main():
 
     col2.write("Record an audio file")
     if col2.button("Record Audio"):
-        file_path = os.path.join(folder_path, 'recorded_audio.wav')
-        record_path = os.path.join(folder_path, 'recorded_audio.wav')
+        random_number = random.randint(1, 100)
+        file_name = str(random_number) + "recorded_audio.wav"
+        file_path = os.path.join(folder_path, file_name)
+        record_path = os.path.join(folder_path, file_name)
         record_audio(record_path)
+        features = extract_live_features(file_path)
+        # Make prediction using the trained model
+        prediction = classifier.predict(features)
+        predicted_label = prediction[0]
+        col2.success(f"Liveliness :  {predicted_label}")
         display_analysis_results(file_path)
 
     # if col2.button('Record'):
