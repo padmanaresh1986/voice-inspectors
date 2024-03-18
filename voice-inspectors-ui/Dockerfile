@@ -14,6 +14,12 @@ RUN apt-get update && apt-get install -y \
     portaudio19-dev \
     && rm -rf /var/lib/apt/lists/*
 
+# Install PulseAudio and dependencies
+RUN apt-get update && apt-get install -y \
+    pulseaudio \
+    alsa-utils \
+    && rm -rf /var/lib/apt/lists/*
+
 # Install production dependencies.
 RUN pip install --upgrade -r requirements.txt
 
@@ -22,4 +28,4 @@ RUN pip install --upgrade -r requirements.txt
 # For environments with multiple CPU cores, increase the number of workers
 # to be equal to the cores available.
 #CMD exec gunicorn --bind :$PORT --workers 1 --threads 8 --chdir app app:app
-ENTRYPOINT ["streamlit", "run", "app/streamdeepfake.py", "--server.port=8080", "--server.address=0.0.0.0", "--device /dev/snd:/dev/snd"]
+ENTRYPOINT ["streamlit", "run", "app/streamdeepfake.py", "--server.port=8080", "--server.address=0.0.0.0"]
