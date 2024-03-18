@@ -310,7 +310,7 @@ def health():
     return 'pong\n'
 
 # API route for file upload and prediction
-@app.route('/voice/analyze', methods=['POST'])
+@app.route('/voice/analyse', methods=['POST'])
 async def upload_file():
     # Check if the file is present in the request
     if 'file' not in request.files:
