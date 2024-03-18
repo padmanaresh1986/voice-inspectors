@@ -212,7 +212,7 @@ def classify_mood(audio_file):
     # Make predictions
     predictions = moodModel.predict(mfcc_features)
     # Decode predictions
-    emotion_labels = ['Angry', 'Disgust', 'Fear', 'Happy', 'Neutral', 'Pleasant Surprise', 'Sad', 'surprised']
+    emotion_labels = ['Angry', 'Neutral', 'Neutral', 'Happy', 'Neutral', 'Neutral', 'Sad', 'Neutral']
     predicted_label = emotion_labels[np.argmax(predictions)]
     result = {"mood": predicted_label}  # Dummy result
     return json.dumps(result)
