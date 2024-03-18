@@ -231,9 +231,9 @@ def health():
     return 'pong\n'
 
 # API route for file upload and prediction
-@app.route('/upload', methods=['POST'])
+@app.route('/voice/analyse', methods=['POST'])
 async def upload_file():
-    # Check if the file is present in the request
+    # Check if the file is present in the reque
     if 'file' not in request.files:
         return jsonify({"error": "No file part"}), 400
 
