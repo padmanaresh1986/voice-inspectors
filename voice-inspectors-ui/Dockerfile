@@ -20,6 +20,11 @@ RUN apt-get update && apt-get install -y \
     alsa-utils \
     && rm -rf /var/lib/apt/lists/*
 
+# Install ffmpeg and other necessary dependencies
+RUN apt-get update && \
+    apt-get install -y ffmpeg && \
+    rm -rf /var/lib/apt/lists/*
+
 # Install production dependencies.
 RUN pip install --upgrade -r requirements.txt
 

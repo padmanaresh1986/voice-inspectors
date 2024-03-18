@@ -9,3 +9,5 @@ werkzeug
 plotly
 pyaudio
 streamlit
+pydub
+joblib

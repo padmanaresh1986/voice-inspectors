@@ -13,6 +13,10 @@ import plotly.graph_objects as go
 import pyaudio
 import wave
 import random
+import speech_recognition as sr
+from pydub import AudioSegment
+from pydub.exceptions import CouldntDecodeError
+import sys
 
 # Load the pre-trained model
 userModel = load_model("app/audio_type_classification.h5")
@@ -34,6 +38,61 @@ st.set_page_config(layout="wide")
 st.title("Voice Detectives")
 
 col1, col2 = st.columns([2, 1])  # Adjust the widths as needed
+
+
+def get_text(audio_file):
+    try:
+        # Load the audio file
+        if audio_file.endswith('.wav'):
+            audio = AudioSegment.from_wav(audio_file)
+        elif audio_file.endswith('.mp3'):
+            audio = AudioSegment.from_mp3(audio_file)
+        else:
+            print("Unsupported audio format")
+            musicType = 'Music'
+
+        # Set the chunk size (in milliseconds)
+        chunk_size_ms = 1000  # 1 second
+
+        # Initialize the recognizer
+        recognizer = sr.Recognizer()
+
+        # Transcribe speech from each chunk
+        transcription = ""
+        for i in range(0, len(audio), chunk_size_ms):
+            if i > 10000:
+                musicType = 'Music'
+                result = {"musicType": musicType}
+                return json.dumps(result)
+            chunk = audio[i:i + chunk_size_ms]
+            print(f"i === {i}")
+
+            # Export the chunk as a temporary WAV file
+            chunk.export("temp.wav", format="wav")
+
+            # Recognize speech from the chunk
+            with sr.AudioFile("temp.wav") as source:
+                audio_data = recognizer.record(source)
+
+            try:
+                text = recognizer.recognize_google(audio_data)
+                transcription += text + " "
+                if sys.getsizeof(transcription) > 1:
+                    print(f"{transcription}")
+                    musicType = 'Speech'
+                    result = {"musicType": musicType}
+                    return json.dumps(result)
+            except sr.UnknownValueError:
+                print("Could not understand audio")
+            except sr.RequestError as e:
+                print("Error:", e)
+
+    except CouldntDecodeError:
+        print("Error: Could not decode audio file")
+
+    musicType = 'Music'
+    result = {"musicType": musicType}
+    return json.dumps(result)
 
 
 def extract_live_features(audio_file, mfcc=True, chroma=True, mel=True):
@@ -216,8 +275,8 @@ def process_audio_async(audio_file):
     user_type_task = classify_user_type(audio_file)
     mood_task = classify_mood(audio_file)
     language_task = classify_language(audio_file)
-    music_speech_task = classify_music_speech(audio_file)
-    noice_task = detect_noise_level(audio_file)
+    music_speech_task = get_text(audio_file)
+    # music_speech_task = classify_music_speech(audio_file)
 
     end_time = time.time()
     response_time = round(end_time - start_time, 2)
@@ -227,24 +286,43 @@ def process_audio_async(audio_file):
     languageobj = json.loads(language_task)
     musicSpeechObj = json.loads(music_speech_task)
 
-    result = {
-        "status": "success",
-        "analysis": {
-            "detectedVoice": True,
-            "voiceType": userobj.get("userType"),
-            "confidenceScore": {
-                "aiProbability": userobj.get("ai_percentage"),
-                "humanProbability": userobj.get("human_percentage")
+    musicType = musicSpeechObj.get("musicType")
+
+    if musicType == 'Music':
+        result = {
+            "status": "success",
+            "analysis": {
+                "detectedVoice": True,
+                "voiceType": 'Music',
+                "confidenceScore": None,
+                "additionalInfo": {
+                    "language": None,
+                    "emotionalTone": None,
+                    "backgroundNoiseLevel": detect_noise_level(audio_file),
+                    "audioType": 'Music'
+                }
             },
-            "additionalInfo": {
-                "language": languageobj.get("language"),
-                "emotionalTone": moodobj.get("mood"),
-                "backgroundNoiseLevel": noice_task,
-                "audioType": musicSpeechObj.get("audioType")
-            }
-        },
-        "responseTime": response_time
-    }
+            "responseTime": response_time
+        }
+    else:
+        result = {
+            "status": "success",
+            "analysis": {
+                "detectedVoice": True,
+                "voiceType": userobj.get("userType"),
+                "confidenceScore": {
+                    "aiProbability": userobj.get("ai_percentage"),
+                    "humanProbability": userobj.get("human_percentage")
+                },
+                "additionalInfo": {
+                    "language": languageobj.get("language"),
+                    "emotionalTone": moodobj.get("mood"),
+                    "backgroundNoiseLevel": detect_noise_level(audio_file),
+                    "audioType": 'Speech'
+                }
+            },
+            "responseTime": response_time
+        }
     return result
 
 
