@@ -11,4 +11,4 @@ pyaudio
 streamlit
 pydub
 joblib
-speech_recognition
+SpeechRecognition

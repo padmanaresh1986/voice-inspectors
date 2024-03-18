@@ -9,4 +9,4 @@ werkzeug
 google-cloud-storage
 pydub
 joblib
-speech_recognition
+SpeechRecognition
