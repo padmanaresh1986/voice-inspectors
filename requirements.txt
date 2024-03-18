@@ -7,3 +7,5 @@ numpy
 tensorflow
 werkzeug
 google-cloud-storage
+pydub
+joblib

@@ -8,6 +8,10 @@ from flask import Flask, request, jsonify
 from werkzeug.utils import secure_filename
 import time
 import joblib
+import speech_recognition as sr
+from pydub import AudioSegment
+from pydub.exceptions import CouldntDecodeError
+import sys
 
 app = Flask(__name__)
 
@@ -25,6 +29,61 @@ languageModel = joblib.load("language_model.pkl")
 
 model_filename = "music_classification_model.joblib"
 musicSpeechModel = joblib.load(model_filename)
+
+
+async def get_text(audio_file):
+    try:
+        # Load the audio file
+        if audio_file.endswith('.wav'):
+            audio = AudioSegment.from_wav(audio_file)
+        elif audio_file.endswith('.mp3'):
+            audio = AudioSegment.from_mp3(audio_file)
+        else:
+            print("Unsupported audio format")
+            musicType = 'Music'
+
+        # Set the chunk size (in milliseconds)
+        chunk_size_ms = 1000  # 1 second
+
+        # Initialize the recognizer
+        recognizer = sr.Recognizer()
+
+        # Transcribe speech from each chunk
+        transcription = ""
+        for i in range(0, len(audio), chunk_size_ms):
+            if i > 10000:
+                musicType = 'Music'
+                result = {"musicType": musicType}
+                return json.dumps(result)
+            chunk = audio[i:i + chunk_size_ms]
+            print(f"i === {i}")
+
+            # Export the chunk as a temporary WAV file
+            chunk.export("temp.wav", format="wav")
+
+            # Recognize speech from the chunk
+            with sr.AudioFile("temp.wav") as source:
+                audio_data = recognizer.record(source)
+
+            try:
+                text = recognizer.recognize_google(audio_data)
+                transcription += text + " "
+                if sys.getsizeof(transcription) > 1:
+                    print(f"{transcription}")
+                    musicType = 'Speech'
+                    result = {"musicType": musicType}
+                    return json.dumps(result)
+            except sr.UnknownValueError:
+                print("Could not understand audio")
+            except sr.RequestError as e:
+                print("Error:", e)
+
+    except CouldntDecodeError:
+        print("Error: Could not decode audio file")
+
+    musicType = 'Music'
+    result = {"musicType": musicType}
+    return json.dumps(result)
 
 
 # Function to extract audio features
@@ -173,15 +232,16 @@ async def process_audio_async(audio_file):
     user_type_task = asyncio.create_task(classify_user_type(audio_file))
     mood_task = asyncio.create_task(classify_mood(audio_file))
     language_task = asyncio.create_task(classify_language(audio_file))
-    music_speech_task = asyncio.create_task(classify_music_speech(audio_file))
-   # noice_task = asyncio.create_task(detect_noise_level(audio_file))
+    music_speech_task = asyncio.create_task(get_text(audio_file))
+    # noice_task = asyncio.create_task(detect_noise_level(audio_file))
 
     # Wait for both results to be ready
     user_type_result = await user_type_task
     mood_result = await mood_task
     language_result = await language_task
     music_speech_result = await music_speech_task
-   # noice_result = await noice_task
+    # noice_result = await noice_task
+
 
     end_time = time.time()
     response_time = round(end_time - start_time, 2)
@@ -191,24 +251,43 @@ async def process_audio_async(audio_file):
     languageobj = json.loads(language_result)
     musicSpeechObj = json.loads(music_speech_result)
 
-    result = {
-        "status": "success",
-        "analysis": {
-            "detectedVoice": True,
-            "voiceType": userobj.get("userType"),
-            "confidenceScore": {
-                "aiProbability": userobj.get("ai_percentage"),
-                "humanProbability": userobj.get("human_percentage")
+    musicType = musicSpeechObj.get("musicType")
+
+    if musicType == 'Music':
+        result = {
+            "status": "success",
+            "analysis": {
+                "detectedVoice": True,
+                "voiceType": 'Music',
+                "confidenceScore": None,
+                "additionalInfo": {
+                    "language": None,
+                    "emotionalTone": None,
+                    "backgroundNoiseLevel": detect_noise_level(audio_file),
+                    "audioType": 'Music'
+                }
             },
-            "additionalInfo": {
-                "language": languageobj.get("language"),
-                "emotionalTone": moodobj.get("mood"),
-                "backgroundNoiseLevel": detect_noise_level(audio_file),
-                "audioType": musicSpeechObj.get("audioType")
-            }
-        },
-        "responseTime": response_time
-    }
+            "responseTime": response_time
+        }
+    else:
+        result = {
+            "status": "success",
+            "analysis": {
+                "detectedVoice": True,
+                "voiceType": userobj.get("userType"),
+                "confidenceScore": {
+                    "aiProbability": userobj.get("ai_percentage"),
+                    "humanProbability": userobj.get("human_percentage")
+                },
+                "additionalInfo": {
+                    "language": languageobj.get("language"),
+                    "emotionalTone": moodobj.get("mood"),
+                    "backgroundNoiseLevel": detect_noise_level(audio_file),
+                    "audioType": 'Speech'
+                }
+            },
+            "responseTime": response_time
+        }
     return result
 
 
@@ -233,7 +312,7 @@ def health():
 # API route for file upload and prediction
 @app.route('/voice/analyse', methods=['POST'])
 async def upload_file():
-    # Check if the file is present in the reque
+    # Check if the file is present in the request
     if 'file' not in request.files:
         return jsonify({"error": "No file part"}), 400
 

@@ -7,6 +7,11 @@ ENV APP_HOME /app
 WORKDIR $APP_HOME
 COPY . ./
 
+# Install ffmpeg and other necessary dependencies
+RUN apt-get update && \
+    apt-get install -y ffmpeg && \
+    rm -rf /var/lib/apt/lists/*
+
 # Install production dependencies.
 RUN pip install --upgrade -r requirements.txt
 
