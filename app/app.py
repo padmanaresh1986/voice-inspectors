@@ -310,35 +310,6 @@ def health():
     return 'pong\n'
 
 # API route for file upload and prediction
-@app.route('/voice/analyse', methods=['POST'])
-async def upload_file():
-    # Check if the file is present in the request
-    if 'file' not in request.files:
-        return jsonify({"error": "No file part"}), 400
-
-    file = request.files['file']
-
-    # Check if the file is empty
-    if file.filename == '':
-        return jsonify({"error": "No selected file"}), 400
-
-    # Check if the file has an allowed extension
-    if file and allowed_file(file.filename):
-        # Save the file to a temporary location
-        temp_file_path = os.path.join(app.config['UPLOAD_FOLDER'], secure_filename(file.filename))
-        file.save(temp_file_path)
-
-        # Process the audio file asynchronously
-        result = await process_audio_async(temp_file_path)
-
-        # Remove the temporary file
-        # os.remove(temp_file_path)
-
-        return jsonify(result), 200
-
-    return jsonify({"error": "Invalid file format"}), 400
-
-# API route for file upload and prediction
 @app.route('/voice/analyze', methods=['POST'])
 async def upload_file():
     # Check if the file is present in the request
@@ -366,7 +337,6 @@ async def upload_file():
         return jsonify(result), 200
 
     return jsonify({"error": "Invalid file format"}), 400
-
 
 
 if __name__ == '__main__':
