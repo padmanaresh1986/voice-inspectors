@@ -313,10 +313,10 @@ def health():
 @app.route('/voice/analyse', methods=['POST'])
 async def upload_file():
     # Check if the file is present in the request
-    if 'file' not in request.files:
+    if 'sample' not in request.files:
         return jsonify({"error": "No file part"}), 400
 
-    file = request.files['file']
+    file = request.files['sample']
 
     # Check if the file is empty
     if file.filename == '':
